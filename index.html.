@@ -1,0 +1,199 @@
+
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ROMANCE VEIL</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+:root {
+  --bg:#090809; --panel:#151114; --red:#c51e3a;
+  --muted:#a99ba0; --line:#392027; --white:#f8f1f3;
+}
+* { box-sizing:border-box; }
+body {
+  margin:0; background:var(--bg); color:var(--white);
+  font-family:Arial,sans-serif; min-height:100vh;
+}
+header {
+  padding:35px 20px 24px; text-align:center;
+  border-bottom:1px solid var(--line);
+  background:radial-gradient(ellipse at top,#35101b,transparent 75%);
+}
+.eyebrow { color:#e45a71; letter-spacing:5px; font-size:10px; }
+h1 { letter-spacing:5px; font-size:30px; margin:15px 0 8px; }
+header p { color:var(--muted); font-size:13px; }
+main { max-width:760px; margin:auto; padding:24px 16px; }
+.stats { display:flex; gap:10px; margin-bottom:22px; }
+.stat {
+  flex:1; background:var(--panel); padding:15px;
+  border:1px solid var(--line); border-radius:10px;
+}
+.stat strong { display:block; font-size:23px; margin-bottom:5px; }
+.stat span { color:var(--muted); font-size:11px; }
+input,button {
+  width:100%; border-radius:8px; padding:13px;
+  font-size:14px; margin-bottom:10px;
+}
+input {
+  background:#100d0f; color:white;
+  border:1px solid var(--line); outline:none;
+}
+input:focus { border-color:var(--red); }
+h2 { font-size:14px; letter-spacing:2px; margin:25px 0 14px; }
+.grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px; }
+.card {
+  padding:16px 12px; border:1px solid var(--line);
+  border-radius:10px; background:var(--panel); min-width:0;
+}
+.card h3 { margin:0 0 7px; font-size:17px; }
+.fandom { color:var(--muted); font-size:12px; margin-bottom:15px; }
+.status { font-size:11px; color:#e45a71; margin-bottom:12px; }
+.status.busy { color:#b8aeb1; }
+button {
+  background:var(--red); color:white; border:0;
+  font-weight:bold; cursor:pointer; margin-bottom:0;
+}
+button:disabled { background:#34252a; color:#a99ba0; cursor:not-allowed; }
+#message { color:#f28ca0; font-size:13px; margin:15px 0; }
+footer { text-align:center; padding:30px 10px; color:#786970; font-size:10px; letter-spacing:3px; }
+@media(min-width:560px) { .grid { grid-template-columns:repeat(3,minmax(0,1fr)); } }
+</style>
+</head>
+<body>
+<header>
+  <div class="eyebrow">✦ THE ROLE ARCHIVE ✦</div>
+  <h1>ROMANCE VEIL</h1>
+  <p>Claim your role. Keep your secret.</p>
+</header>
+
+<main>
+  <div class="stats">
+    <div class="stat"><strong id="total">—</strong><span>TOTAL ROLES</span></div>
+    <div class="stat"><strong id="available">—</strong><span>AVAILABLE</span></div>
+    <div class="stat"><strong id="occupied">—</strong><span>CLAIMED</span></div>
+  </div>
+
+  <input id="member" maxlength="40" placeholder="Escribí tu nombre de integrante">
+  <input id="search" placeholder="Buscar idol o fandom...">
+
+  <h2>— AVAILABLE ROLES</h2>
+  <div class="grid" id="roles"></div>
+  <p id="message">Conectá Supabase para cargar los roles.</p>
+</main>
+
+<footer>ROMANCE VEIL · PRIVATE CLUB</footer>
+
+<script>
+const SUPABASE_URL = "PEGÁ_ACÁ_LA_URL_DE_TU_PROYECTO";
+const SUPABASE_ANON_KEY = "PEGÁ_ACÁ_TU_CLAVE_PÚBLICA";
+
+let db = null;
+let allRoles = [];
+let reservations = [];
+
+const $ = id => document.getElementById(id);
+const message = text => { $("message").textContent = text; };
+
+async function loadRoles() {
+  if (!db) return;
+  const [r, b] = await Promise.all([
+    db.from("roles").select("id,character_name,fandom").order("character_name"),
+    db.from("reservations").select("role_id,member_name")
+  ]);
+
+  if (r.error || b.error) {
+    message("No se pudieron cargar los roles. Revisá la configuración de Supabase.");
+    return;
+  }
+
+  allRoles = r.data || [];
+  reservations = b.data || [];
+  render();
+}
+
+function render() {
+  const occupied = new Map(reservations.map(x => [x.role_id, x.member_name]));
+  const term = $("search").value.trim().toLowerCase();
+  const visible = allRoles.filter(x =>
+    (x.character_name + " " + x.fandom).toLowerCase().includes(term)
+  );
+
+  $("total").textContent = allRoles.length;
+  $("occupied").textContent = reservations.length;
+  $("available").textContent = allRoles.length - reservations.length;
+
+  $("roles").innerHTML = "";
+
+  for (const role of visible) {
+    const owner = occupied.get(role.id);
+    const card = document.createElement("article");
+    card.className = "card";
+
+    const title = document.createElement("h3");
+    title.textContent = role.character_name;
+    const fandom = document.createElement("div");
+    fandom.className = "fandom";
+    fandom.textContent = role.fandom || "Personaje";
+
+    const status = document.createElement("div");
+    status.className = "status" + (owner ? " busy" : "");
+    status.textContent = owner ? "CLAIMED · " + owner : "AVAILABLE";
+
+    const button = document.createElement("button");
+    button.textContent = owner ? "Ocupado" : "Reservar";
+    button.disabled = !!owner;
+    button.addEventListener("click", () => reserve(role.id));
+
+    card.append(title, fandom, status, button);
+    $("roles").append(card);
+  }
+
+  if (!visible.length) {
+    const empty = document.createElement("p");
+    empty.textContent = "No se encontraron roles.";
+    $("roles").append(empty);
+  }
+}
+
+async function reserve(roleId) {
+  const name = $("member").value.trim();
+  if (!name || name.length > 40) {
+    message("Escribí tu nombre (máximo 40 caracteres).");
+    return;
+  }
+
+  message("Procesando reserva...");
+  const { error } = await db.rpc("reserve_role", {
+    p_role_id: roleId,
+    p_member_name: name
+  });
+
+  if (error) {
+    message(error.message.includes("ocupado")
+      ? "Ese rol ya está ocupado. Actualizando lista..."
+      : "No se pudo reservar. Revisá la conexión e intentá de nuevo.");
+  } else {
+    message("¡Reserva realizada! 🖤");
+  }
+  await loadRoles();
+}
+
+$("search").addEventListener("input", render);
+
+if (
+  SUPABASE_URL.startsWith("https://") &&
+  !SUPABASE_URL.includes("PEGÁ_ACÁ") &&
+  SUPABASE_ANON_KEY &&
+  !SUPABASE_ANON_KEY.includes("PEGÁ_ACÁ")
+) {
+  db = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+  loadRoles();
+  setInterval(loadRoles, 10000);
+} else {
+  message("Falta configurar la URL y la clave pública de Supabase.");
+}
+</script>
+</body>
+</html>
