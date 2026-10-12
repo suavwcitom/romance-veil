@@ -86,8 +86,8 @@ footer { text-align:center; padding:30px 10px; color:#786970; font-size:10px; le
 <footer>ROMANCE VEIL · PRIVATE CLUB</footer>
 
 <script>
-const SUPABASE_URL = "PEGÁ_ACÁ_LA_URL_DE_TU_PROYECTO";
-const SUPABASE_ANON_KEY = "PEGÁ_ACÁ_TU_CLAVE_PÚBLICA";
+const SUPABASE_URL = "https://xgtxfkbhdgpuarxhzajk.supabase.co/rest/v1/";
+const SUPABASE_ANON_KEY = "sb_publishable__kHbGsl9xYFW8D5dAk6bIQ_5kk2g8XX";
 
 let db = null;
 let allRoles = [];
